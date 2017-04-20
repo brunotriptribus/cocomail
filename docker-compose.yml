@@ -1,0 +1,101 @@
+    version: '2'
+    services:
+        db-coco:
+            image: mysql:5.5
+            restart: unless-stopped
+            container_name : 'coco-db-t'
+            hostname: db.coco.com
+            environment:
+                - MYSQL_USER=umail
+                - MYSQL_PASSWORD=ZePassword
+                - MYSQL_DATABASE=vmail
+                - MYSQL_RANDOM_ROOT_PASSWORD=yes 
+                - TZ=America/Montreal
+                - TERM=xterm
+                - DB_TYPE=mysql
+            volumes:
+                - /srv/docker/coco-db-t/var_lib_mysql:/var/lib/mysql
+
+        http-coco:
+            image: postfixadmin
+            build: ./http/
+            restart: unless-stopped
+            container_name : 'coco-http-t'
+            hostname: mail.coco.com
+            links:
+                - db-coco:mysql-db
+            ports:
+                - "9090:80"
+            environment:
+                - MYSQL_USER=umail
+                - MYSQL_PASSWORD=ZePassword
+                - MYSQL_DATABASE=vmail
+                - TZ=America/Montreal
+                - TERM=xterm
+                - DB_TYPE=mysql
+                - MAIL_DOMAIN=coco.com
+                - SETUP_PASS=superPasse
+                - ADM_MAIL=admin@coco.com
+                - ADM_PASS=DockerRock
+
+        smtp-coco:
+            image: smtp-db
+            build: ./smtp/
+            restart: unless-stopped
+            container_name : 'coco-smtp-t'
+            hostname: mail.coco.com
+            links:
+                - db-coco:db
+                - imap-coco:dovecot-lmtp
+            ports:
+                - "25:25"
+            environment:
+                - MYSQL_USER=umail
+                - MYSQL_PASSWORD=ZePassword
+                - MYSQL_DATABASE=vmail
+                - PERMIT_NETWORK=172.21.0.0/16
+                - TZ=America/Montreal
+                - TERM=xterm
+            volumes:
+                - /srv/docker/coco-smtp-t/var/spool/postfix:/var/spool/postfix
+
+        imap-coco:
+            image: imap-db
+            build: ./imap/
+            restart: unless-stopped
+            container_name : 'coco-imap-t'
+            hostname: mail.coco.com
+            links:
+                - db-coco:db
+            environment:
+                - MYSQL_USER=umail
+                - MYSQL_PASSWORD=ZePassword
+                - MYSQL_DATABASE=vmail
+                - DB_TYPE=mysql
+                - TZ=America/Montreal
+                - TERM=xterm
+            volumes:
+                - /srv/docker/coco-imap-t/var_mail:/var/mail/
+
+        roundcube-coco:
+            image: roundcube
+            build: ./roundcube/
+            restart: unless-stopped
+            container_name : 'coco-roundcube-t'
+            hostname: mail.coco.com
+            links:
+                - db-coco:db
+                - imap-coco:dovecot-lmtp
+                - smtp-coco:smtp
+            ports:
+                - "9191:80"
+            environment:
+                - MYSQL_USER=umail
+                - MYSQL_PASSWORD=ZePassword
+                - MYSQL_DATABASE=vmail
+                - DB_TYPE=mysql
+                - DB_HOST=coco-db-t
+                - TIMEZONE=America/Toronto 
+                - IMAP=coco-imap-t
+                - SMTP=coco-smtp-t
+                - TERM=xterm
